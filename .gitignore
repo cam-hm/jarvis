@@ -6,3 +6,4 @@ env/
 venv/
 .env
 .DS_Store
+src/app/services/models/
