@@ -4,3 +4,4 @@ pydantic
 websockets
 jinja2
 python-dotenv
+google-generativeai
