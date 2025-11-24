@@ -87,13 +87,23 @@
                 statusDiv.style.color = "#00ffcc";
             };
 
+            ws.binaryType = 'arraybuffer';
+
             ws.onmessage = function(event) {
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
-                messages.scrollTop = messages.scrollHeight;
+                if (typeof event.data === 'string') {
+                    var messages = document.getElementById('messages')
+                    var message = document.createElement('li')
+                    var content = document.createTextNode(event.data)
+                    message.appendChild(content)
+                    messages.appendChild(message)
+                    messages.scrollTop = messages.scrollHeight;
+                } else if (event.data instanceof ArrayBuffer) {
+                    // Play audio
+                    var blob = new Blob([event.data], { type: 'audio/mp3' });
+                    var url = window.URL.createObjectURL(blob);
+                    var audio = new Audio(url);
+                    audio.play();
+                }
             };
 
             ws.onclose = function(event) {
