@@ -5,30 +5,39 @@
     <title>Jarvis AI - Interface</title>
     <style>
         body {
-            background-color: #0f0f0f;
-            color: #00ffcc;
-            font-family: 'Courier New', Courier, monospace;
+            background: linear-gradient(135deg, #0a0015 0%, #1a0033 50%, #0a0820 100%);
+            color: #00d9ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
+            overflow: hidden;
         }
 
         #container {
             width: 80%;
             max-width: 600px;
-            border: 1px solid #00ffcc;
+            border: 2px solid #b366ff;
             padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+            border-radius: 15px;
+            background: rgba(10, 0, 30, 0.7);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 30px rgba(179, 102, 255, 0.4), 0 0 60px rgba(0, 217, 255, 0.2);
         }
 
         h1 {
             text-align: center;
             text-transform: uppercase;
-            letter-spacing: 5px;
+            letter-spacing: 8px;
+            background: linear-gradient(90deg, #b366ff 0%, #00d9ff 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2em;
+            margin: 0 0 20px 0;
         }
 
         #messages {
@@ -36,50 +45,91 @@
             padding: 0;
             height: 300px;
             overflow-y: scroll;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid #b366ff;
             margin-bottom: 20px;
         }
 
         #messages li {
             padding: 5px 0;
+            color: #00d9ff;
         }
 
         input {
             width: 70%;
-            padding: 10px;
-            background: #222;
-            border: 1px solid #00ffcc;
-            color: white;
-            border-radius: 5px;
+            padding: 12px;
+            background: rgba(20, 0, 40, 0.8);
+            border: 2px solid #b366ff;
+            color: #00d9ff;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #ff66d9;
+            box-shadow: 0 0 15px rgba(255, 102, 217, 0.5);
         }
 
         button {
             width: 25%;
-            padding: 10px;
-            background: #00ffcc;
-            color: #000;
+            padding: 12px;
+            background: linear-gradient(135deg, #b366ff 0%, #ff66d9 100%);
+            color: #fff;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 14px;
+            transition: all 0.3s;
         }
 
         button:hover {
-            background: #00ccaa;
+            background: linear-gradient(135deg, #ff66d9 0%, #b366ff 100%);
+            box-shadow: 0 0 20px rgba(255, 102, 217, 0.6);
         }
 
         .status {
-            font-size: 0.8em;
-            color: #666;
+            font-size: 0.9em;
+            color: #b366ff;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Avatar Canvas */
+        #avatar-container {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            margin: 0 auto 30px;
+            cursor: grab;
+        }
+
+        #avatar-container:active {
+            cursor: grabbing;
+        }
+
+        #avatar-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            background: radial-gradient(circle, rgba(179, 102, 255, 0.2) 0%, rgba(10, 0, 30, 0) 70%);
+            box-shadow: 0 0 50px rgba(179, 102, 255, 0.4), 0 0 100px rgba(0, 217, 255, 0.2);
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 
 <body>
     <div id="container">
         <h1>J.A.R.V.I.S</h1>
+
+        <!-- Avatar -->
+        <div id="avatar-container">
+            <canvas id="avatar-canvas"></canvas>
+        </div>
         <ul id='messages'></ul>
         <div style="display: flex; justify-content: space-between;">
             <input type="text" id="messageText" autocomplete="off" placeholder="Command..." />
@@ -88,8 +138,473 @@
         <div class="status" id="status">Connecting...</div>
     </div>
     <script>
+        // ========== AVATAR SETUP ==========
+        let scene, camera, renderer, avatar, mixer;
+        let audioContext, audioAnalyser, audioDataArray;
+        let isAvatarReady = false;
+        let clock = new THREE.Clock();
+
+        function initAvatar() {
+            const canvas = document.getElementById('avatar-canvas');
+
+            // Three.js setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+            camera.position.set(0, 0, 3);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({
+                canvas,
+                alpha: true,
+                antialias: true,
+                powerPreference: 'high-performance'
+            });
+            renderer.setSize(500, 500);
+            renderer.setPixelRatio(window.devicePixelRatio); // HD rendering
+            renderer.setClearColor(0x000000, 0);
+            renderer.shadowMap.enabled = true;
+
+            // Enhanced Lighting
+            const ambientLight = new THREE.AmbientLight(0x4400ff, 0.4);
+            scene.add(ambientLight);
+
+            const purpleLight = new THREE.DirectionalLight(0xb366ff, 1);
+            purpleLight.position.set(2, 5, 3);
+            scene.add(purpleLight);
+
+            const cyanLight = new THREE.DirectionalLight(0x00d9ff, 0.8);
+            cyanLight.position.set(0, 0, -5);
+            scene.add(cyanLight);
+
+            // Create Arc Reactor Avatar (Purple/Cyan/Pink theme)
+            avatar = new THREE.Group();
+            avatar.position.set(0, 0, 0);
+            scene.add(avatar);
+
+            // === CYAN CENTER TRIANGLE (Core) ===
+            const triangleShape = new THREE.Shape();
+            const triangleSize = 0.3;
+            triangleShape.moveTo(0, triangleSize);
+            triangleShape.lineTo(-triangleSize * 0.866, -triangleSize * 0.5);
+            triangleShape.lineTo(triangleSize * 0.866, -triangleSize * 0.5);
+            triangleShape.lineTo(0, triangleSize);
+
+            const triangleGeometry = new THREE.ShapeGeometry(triangleShape);
+            const triangleMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00d9ff,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            });
+            const core = new THREE.Mesh(triangleGeometry, triangleMaterial);
+            avatar.add(core);
+
+            // Triangle outline (brighter)
+            const triangleOutlineGeometry = new THREE.EdgesGeometry(triangleGeometry);
+            const triangleOutlineMaterial = new THREE.LineBasicMaterial({
+                color: 0x00ffff,
+                linewidth: 3
+            });
+            const triangleOutline = new THREE.LineSegments(triangleOutlineGeometry, triangleOutlineMaterial);
+            avatar.add(triangleOutline);
+
+            // === STRUCTURAL BEAMS (from triangle to outer ring) ===
+            const beamAngles = [0, 60, 120, 180, 240, 300]; // 6 main beams
+            beamAngles.forEach(angleDeg => {
+                const angle = (angleDeg * Math.PI) / 180;
+                const beamGeometry = new THREE.BufferGeometry();
+                const beamPoints = [
+                    new THREE.Vector3(Math.cos(angle) * 0.35, Math.sin(angle) * 0.35, 0),
+                    new THREE.Vector3(Math.cos(angle) * 1.2, Math.sin(angle) * 1.2, 0)
+                ];
+                beamGeometry.setFromPoints(beamPoints);
+                const beamMaterial = new THREE.LineBasicMaterial({
+                    color: 0xb366ff,
+                    linewidth: 2,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const beam = new THREE.Line(beamGeometry, beamMaterial);
+                avatar.add(beam);
+            });
+
+            // === DIAGONAL CROSS BEAMS ===
+            const crossBeams = [
+                { angle1: 30, angle2: 150 },
+                { angle1: 90, angle2: 210 },
+                { angle1: 150, angle2: 270 },
+                { angle1: 210, angle2: 330 },
+                { angle1: 270, angle2: 30 },
+                { angle1: 330, angle2: 90 }
+            ];
+
+            crossBeams.forEach(({ angle1, angle2 }) => {
+                const ang1 = (angle1 * Math.PI) / 180;
+                const ang2 = (angle2 * Math.PI) / 180;
+                const crossGeometry = new THREE.BufferGeometry();
+                const crossPoints = [
+                    new THREE.Vector3(Math.cos(ang1) * 0.9, Math.sin(ang1) * 0.9, 0),
+                    new THREE.Vector3(Math.cos(ang2) * 0.9, Math.sin(ang2) * 0.9, 0.01)
+                ];
+                crossGeometry.setFromPoints(crossPoints);
+                const crossMaterial = new THREE.LineBasicMaterial({
+                    color: 0xff66d9,
+                    linewidth: 1.5,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const cross = new THREE.Line(crossGeometry, crossMaterial);
+                avatar.add(cross);
+            });
+
+            // === INNER TECHNICAL RING ===
+            const innerRingGeometry = new THREE.RingGeometry(0.5, 0.54, 64);
+            const innerRingMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00d9ff,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide
+            });
+            const innerRing = new THREE.Mesh(innerRingGeometry, innerRingMaterial);
+            avatar.add(innerRing);
+
+            // === OUTER MAIN RING ===
+            const outerRingGeometry = new THREE.RingGeometry(1.15, 1.25, 64);
+            const outerRingMaterial = new THREE.MeshBasicMaterial({
+                color: 0xb366ff,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            });
+            const outerRing = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
+            avatar.add(outerRing);
+
+            // === SEGMENTED OUTER RING (Arc Reactor style) ===
+            const segments = 12;
+            for (let i = 0; i < segments; i++) {
+                const angle1 = (i / segments) * Math.PI * 2;
+                const angle2 = ((i + 0.7) / segments) * Math.PI * 2;
+
+                // Outer segments
+                const segmentGeometry = new THREE.RingGeometry(1.28, 1.35, 32, 1, angle1, angle2 - angle1);
+                const segmentMaterial = new THREE.MeshBasicMaterial({
+                    color: i % 2 === 0 ? 0x00d9ff : 0xff66d9,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide
+                });
+                const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+                avatar.add(segment);
+            }
+
+            // === GEOMETRIC SUPPORT BRACKETS ===
+            const bracketAngles = [30, 90, 150, 210, 270, 330];
+            bracketAngles.forEach(angleDeg => {
+                const angle = (angleDeg * Math.PI) / 180;
+
+                // Create trapezoid bracket shape
+                const bracketShape = new THREE.Shape();
+                const r1 = 0.65;
+                const r2 = 1.0;
+                const width = 0.15;
+
+                const a1 = angle - 0.1;
+                const a2 = angle + 0.1;
+
+                bracketShape.moveTo(Math.cos(a1) * r1, Math.sin(a1) * r1);
+                bracketShape.lineTo(Math.cos(a1) * r2, Math.sin(a1) * r2);
+                bracketShape.lineTo(Math.cos(a2) * r2, Math.sin(a2) * r2);
+                bracketShape.lineTo(Math.cos(a2) * r1, Math.sin(a2) * r1);
+                bracketShape.lineTo(Math.cos(a1) * r1, Math.sin(a1) * r1);
+
+                const bracketGeometry = new THREE.ShapeGeometry(bracketShape);
+                const bracketMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xb366ff,
+                    transparent: true,
+                    opacity: 0.4,
+                    side: THREE.DoubleSide
+                });
+                const bracket = new THREE.Mesh(bracketGeometry, bracketMaterial);
+                avatar.add(bracket);
+            });
+
+            // === WHITE GLOWING ARC REACTOR CORE ===
+            // Bright white center glow
+            const coreGlowGeometry = new THREE.CircleGeometry(0.35, 64);
+            const coreGlowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide
+            });
+            const coreGlow = new THREE.Mesh(coreGlowGeometry, coreGlowMaterial);
+            coreGlow.position.z = -0.02;
+            avatar.add(coreGlow);
+
+            // Outer white glow ring
+            const whiteGlowRingGeom = new THREE.RingGeometry(0.35, 0.65, 64);
+            const whiteGlowRingMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const whiteGlowRing = new THREE.Mesh(whiteGlowRingGeom, whiteGlowRingMat);
+            whiteGlowRing.position.z = -0.03;
+            avatar.add(whiteGlowRing);
+
+            // Cyan glow layer
+            const cyanGlowGeometry = new THREE.CircleGeometry(0.9, 64);
+            const cyanGlowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00d9ff,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide
+            });
+            const cyanGlow = new THREE.Mesh(cyanGlowGeometry, cyanGlowMaterial);
+            cyanGlow.position.z = -0.04;
+            avatar.add(cyanGlow);
+
+            // Purple outer glow
+            const purpleGlowGeometry = new THREE.CircleGeometry(1.5, 64);
+            const purpleGlowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xb366ff,
+                transparent: true,
+                opacity: 0.08,
+                side: THREE.DoubleSide
+            });
+            const purpleGlow = new THREE.Mesh(purpleGlowGeometry, purpleGlowMaterial);
+            purpleGlow.position.z = -0.05;
+            avatar.add(purpleGlow);
+
+            // === PARTICLE FIELD ===
+            const particleCount = 100;
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlePositions = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const radius = 0.4 + Math.random() * 1.0;
+                const angle = Math.random() * Math.PI * 2;
+
+                particlePositions[i3] = Math.cos(angle) * radius;
+                particlePositions[i3 + 1] = Math.sin(angle) * radius;
+                particlePositions[i3 + 2] = (Math.random() - 0.5) * 0.1;
+            }
+
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+            const particlesMaterial = new THREE.PointsMaterial({
+                color: 0x00d9ff,
+                size: 0.012,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+            const particleField = new THREE.Points(particlesGeometry, particlesMaterial);
+            avatar.add(particleField);
+
+            isAvatarReady = true;
+            console.log('JARVIS Arc Reactor avatar created successfully');
+
+            // Mouse interaction - moved inside initAvatar to access canvas
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMouseX = e.clientX;
+                previousMouseY = e.clientY;
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDragging && avatar) {
+                    const deltaX = e.clientX - previousMouseX;
+                    const deltaY = e.clientY - previousMouseY;
+
+                    targetRotationY += deltaX * 0.01;
+                    targetRotationX += deltaY * 0.01;
+
+                    // Clamp X rotation
+                    targetRotationX = Math.max(-0.5, Math.min(0.5, targetRotationX));
+
+                    previousMouseX = e.clientX;
+                    previousMouseY = e.clientY;
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+            });
+
+            animateAvatar();
+        }
+
+        // Mouse interaction
+        let isDragging = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+        let targetRotationY = 0;
+        let targetRotationX = 0;
+        let currentRotationY = 0;
+        let currentRotationX = 0;
+
+        let idleRotation = 0;
+        function animateAvatar() {
+            requestAnimationFrame(animateAvatar);
+
+            const delta = clock.getDelta();
+
+            if (avatar) {
+                // Smooth rotation interpolation for user drag
+                currentRotationY += (targetRotationY - currentRotationY) * 0.1;
+                currentRotationX += (targetRotationX - currentRotationX) * 0.1;
+
+                // Apply user rotation
+                avatar.rotation.z = currentRotationY;
+
+                // Get Arc Reactor components by type
+                const triangleCore = avatar.children[0];
+                const triangleOutline = avatar.children[1];
+
+                // Structural beams start at index 2
+                const beams = [];
+                for (let i = 2; i < 8; i++) {
+                    beams.push(avatar.children[i]);
+                }
+
+                // Cross beams
+                const crossBeams = [];
+                for (let i = 8; i < 14; i++) {
+                    crossBeams.push(avatar.children[i]);
+                }
+
+                // Inner ring at index 14
+                const innerRing = avatar.children[14];
+
+                // Outer ring at index 15
+                const outerRing = avatar.children[15];
+
+                // Segmented rings (12 segments from index 16-27)
+                const segments = [];
+                for (let i = 16; i < 28; i++) {
+                    segments.push(avatar.children[i]);
+                }
+
+                // Brackets (6 brackets from index 28-33)
+                const brackets = [];
+                for (let i = 28; i < 34; i++) {
+                    brackets.push(avatar.children[i]);
+                }
+
+                // Particle field at the end
+                const particleField = avatar.children[avatar.children.length - 1];
+
+                // === LAYER 1: Triangle Core - COUNTERCLOCKWISE (slowest) ===
+                if (triangleCore) {
+                    triangleCore.rotation.z -= 0.002;
+                }
+                if (triangleOutline) {
+                    triangleOutline.rotation.z -= 0.002;
+                }
+
+                // === LAYER 2: Inner Ring - CLOCKWISE (faster) ===
+                if (innerRing) {
+                    innerRing.rotation.z += 0.004;
+                }
+
+                // === LAYER 3: Structural Beams - COUNTERCLOCKWISE (medium) ===
+                beams.forEach(beam => {
+                    if (beam) beam.rotation.z -= 0.003;
+                });
+
+                // === LAYER 4: Cross Beams - CLOCKWISE (medium-fast) ===
+                crossBeams.forEach(cross => {
+                    if (cross) cross.rotation.z += 0.005;
+                });
+
+                // === LAYER 5: Outer Ring - COUNTERCLOCKWISE (slow) ===
+                if (outerRing) {
+                    outerRing.rotation.z -= 0.0025;
+                }
+
+                // === LAYER 6: Segmented Outer Ring - CLOCKWISE (fast) ===
+                segments.forEach(segment => {
+                    if (segment) segment.rotation.z += 0.006;
+                });
+
+                // === LAYER 7: Brackets - COUNTERCLOCKWISE (very slow) ===
+                brackets.forEach(bracket => {
+                    if (bracket) bracket.rotation.z -= 0.0015;
+                });
+
+                // === Particle field - slow rotation ===
+                if (particleField) {
+                    particleField.rotation.z += 0.001;
+                }
+
+                // Pulse white glows
+                const whitePulse = Math.sin(Date.now() * 0.004) * 0.2 + 0.6;
+                const coreGlowIndex = avatar.children.length - 8; // white center glow
+                const whiteRingIndex = avatar.children.length - 7; // white ring
+
+                if (avatar.children[coreGlowIndex]) {
+                    avatar.children[coreGlowIndex].material.opacity = whitePulse;
+                }
+                if (avatar.children[whiteRingIndex]) {
+                    avatar.children[whiteRingIndex].material.opacity = whitePulse * 0.5;
+                }
+
+                // Pulse colored glows
+                const glowPulse = Math.sin(Date.now() * 0.003) * 0.05 + 0.15;
+                const cyanGlowIndex = avatar.children.length - 6;
+                const purpleGlowIndex = avatar.children.length - 5;
+
+                if (avatar.children[cyanGlowIndex]) {
+                    avatar.children[cyanGlowIndex].material.opacity = glowPulse;
+                }
+                if (avatar.children[purpleGlowIndex]) {
+                    avatar.children[purpleGlowIndex].material.opacity = glowPulse * 0.5;
+                }
+
+                // Audio-reactive effects
+                if (audioAnalyser && audioDataArray && isAvatarReady) {
+                    audioAnalyser.getByteFrequencyData(audioDataArray);
+                    const average = audioDataArray.reduce((a, b) => a + b) / audioDataArray.length;
+                    const intensity = average / 255;
+
+                    // Scale entire reactor
+                    const scale = 1 + intensity * 0.15;
+                    avatar.scale.set(scale, scale, scale);
+
+                    // Triangle core pulses with audio
+                    if (triangleCore) {
+                        triangleCore.material.opacity = 0.9 + intensity * 0.1;
+                    }
+
+                    // Speed up all rotations with audio
+                    if (intensity > 0.1) {
+                        if (triangleCore) triangleCore.rotation.z -= intensity * 0.008;
+                        if (triangleOutline) triangleOutline.rotation.z -= intensity * 0.008;
+                        if (innerRing) innerRing.rotation.z += intensity * 0.012;
+                        beams.forEach(beam => { if (beam) beam.rotation.z -= intensity * 0.01; });
+                        crossBeams.forEach(cross => { if (cross) cross.rotation.z += intensity * 0.015; });
+                        segments.forEach(segment => { if (segment) segment.rotation.z += intensity * 0.018; });
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Initialize avatar on page load
+        window.addEventListener('load', initAvatar);
+
+        // ========== WEBSOCKET & AUDIO ==========
         var client_id = Date.now()
-        var ws = new WebSocket(`ws://${window.location.host}/ws/${client_id}`);
+        // Use wss:// for HTTPS (ngrok) and ws:// for HTTP (localhost)
+        var wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/${client_id}`);
         var statusDiv = document.getElementById('status');
 
         ws.onopen = function (event) {
@@ -108,10 +623,24 @@
                 messages.appendChild(message)
                 messages.scrollTop = messages.scrollHeight;
             } else if (event.data instanceof ArrayBuffer) {
-                // Play audio
+                // Play audio with avatar visualization
                 var blob = new Blob([event.data], { type: 'audio/wav' });
                 var url = window.URL.createObjectURL(blob);
                 var audio = new Audio(url);
+
+                // Setup Web Audio API for visualization
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    audioAnalyser = audioContext.createAnalyser();
+                    audioAnalyser.fftSize = 256;
+                    audioDataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+                }
+
+                // Connect audio to analyser
+                const source = audioContext.createMediaElementSource(audio);
+                source.connect(audioAnalyser);
+                audioAnalyser.connect(audioContext.destination);
+
                 audio.play();
             }
         };
