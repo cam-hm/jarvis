@@ -71,7 +71,7 @@
         }
 
         button {
-            width: 25%;
+            width: 22%;
             padding: 12px;
             background: linear-gradient(135deg, #b366ff 0%, #ff66d9 100%);
             color: #fff;
@@ -86,6 +86,35 @@
         button:hover {
             background: linear-gradient(135deg, #ff66d9 0%, #b366ff 100%);
             box-shadow: 0 0 20px rgba(255, 102, 217, 0.6);
+        }
+
+        #micButton {
+            width: 50px;
+            height: 50px;
+            padding: 0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-left: 10px;
+        }
+
+        #micButton.listening {
+            animation: micPulse 1s infinite;
+            background: linear-gradient(135deg, #00d9ff 0%, #00ffff 100%);
+        }
+
+        @keyframes micPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(0, 217, 255, 0.6);
+            }
+
+            50% {
+                box-shadow: 0 0 40px rgba(0, 217, 255, 1);
+            }
         }
 
         .status {
@@ -131,13 +160,153 @@
             <canvas id="avatar-canvas"></canvas>
         </div>
         <ul id='messages'></ul>
-        <div style="display: flex; justify-content: space-between;">
-            <input type="text" id="messageText" autocomplete="off" placeholder="Command..." />
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <input type="text" id="messageText" autocomplete="off" placeholder="Command or speak..." />
             <button onclick="sendMessage()">SEND</button>
+            <button id="micButton" onclick="toggleVoiceInput()" title="Voice Input">🎤</button>
         </div>
         <div class="status" id="status">Connecting...</div>
     </div>
     <script>
+        // ========== VOICE INPUT SETUP ==========
+        let recognition;
+        let isListening = false;
+
+        // Initialize Web Speech API
+        if ('webkitSpeechRecognition' in window) {
+            console.log('✅ Web Speech API is supported!');
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true; // Changed to show interim results
+            recognition.lang = 'en-US';
+
+            recognition.onstart = function () {
+                console.log('🎤 Speech recognition STARTED');
+                isListening = true;
+                document.getElementById('micButton').classList.add('listening');
+                document.getElementById('status').textContent = '🎤 Listening... Speak now!';
+                document.getElementById('status').style.color = '#00ffff';
+            };
+
+            recognition.onresult = function (event) {
+                console.log('📝 Speech recognition result received');
+                console.log('Event:', event);
+
+                // Get the transcript
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                        console.log('✅ Final transcript:', transcript);
+                    } else {
+                        interimTranscript += transcript;
+                        console.log('⏳ Interim transcript:', transcript);
+                    }
+                }
+
+                // Show interim results in input field
+                if (interimTranscript) {
+                    document.getElementById('messageText').value = interimTranscript;
+                    document.getElementById('status').textContent = '🎤 Hearing: ' + interimTranscript;
+                }
+
+                // If we have final transcript, send it
+                if (finalTranscript) {
+                    document.getElementById('messageText').value = finalTranscript;
+                    document.getElementById('status').textContent = '✅ Transcribed: ' + finalTranscript;
+                    document.getElementById('status').style.color = '#00ff00';
+
+                    console.log('📤 Auto-sending message:', finalTranscript);
+                    // Auto-send the transcribed message
+                    setTimeout(() => sendMessage(), 500);
+                }
+            };
+
+            recognition.onerror = function (event) {
+                console.error('❌ Speech recognition error:', event.error);
+                console.error('Error details:', event);
+
+                let errorMsg = '';
+                switch (event.error) {
+                    case 'no-speech':
+                        errorMsg = 'No speech detected. Try again.';
+                        break;
+                    case 'audio-capture':
+                        errorMsg = 'Microphone not found or not working';
+                        break;
+                    case 'not-allowed':
+                        errorMsg = 'Microphone permission denied';
+                        break;
+                    default:
+                        errorMsg = 'Error: ' + event.error;
+                }
+
+                document.getElementById('status').textContent = '❌ ' + errorMsg;
+                document.getElementById('status').style.color = '#ff6666';
+                stopListening();
+            };
+
+            recognition.onend = function () {
+                console.log('🛑 Speech recognition ENDED');
+                stopListening();
+            };
+
+            recognition.onaudiostart = function () {
+                console.log('🔊 Audio capture started - microphone is working!');
+                document.getElementById('status').textContent = '🔊 Audio detected!';
+            };
+
+            recognition.onaudioend = function () {
+                console.log('🔇 Audio capture ended');
+            };
+
+            recognition.onspeechstart = function () {
+                console.log('🗣️ Speech detected!');
+                document.getElementById('status').textContent = '🗣️ Speech detected!';
+            };
+
+            recognition.onspeechend = function () {
+                console.log('🤐 Speech ended');
+            };
+        } else {
+            console.error('❌ Web Speech API is NOT supported in this browser');
+        }
+
+        function toggleVoiceInput() {
+            console.log('🎤 Microphone button clicked');
+
+            if (!recognition) {
+                alert('Voice input is not supported in this browser. Please use Chrome or Edge.');
+                return;
+            }
+
+            if (isListening) {
+                console.log('⏹️ Stopping recognition...');
+                recognition.stop();
+            } else {
+                console.log('▶️ Starting recognition...');
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.error('❌ Error starting recognition:', e);
+                    alert('Could not start voice input: ' + e.message);
+                }
+            }
+        }
+
+        function stopListening() {
+            isListening = false;
+            document.getElementById('micButton').classList.remove('listening');
+            if (document.getElementById('status').textContent.includes('Listening') ||
+                document.getElementById('status').textContent.includes('🎤')) {
+                document.getElementById('status').textContent = 'SYSTEM ONLINE';
+                document.getElementById('status').style.color = '#b366ff';
+            }
+        }
+
         // ========== AVATAR SETUP ==========
         let scene, camera, renderer, avatar, mixer;
         let audioContext, audioAnalyser, audioDataArray;
