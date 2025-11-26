@@ -3,16 +3,25 @@ import io
 import wave
 import tempfile
 import os
+from huggingface_hub import hf_hub_download
 
 class TTSService:
     def __init__(self):
-        # Path to Jarvis Piper model (high quality)
-        self.model_path = "src/app/services/models/jarvis/jarvis-high.onnx"
-        self.config_path = "src/app/services/models/jarvis/jarvis-high.onnx.json"
+        # Automatically download/cache model from Hugging Face
+        # Repo: https://huggingface.co/jgkawell/jarvis
+        self.repo_id = "jgkawell/jarvis"
+        # Correct path based on user provided link
+        self.model_filename = "en/en_GB/jarvis/high/jarvis-high.onnx"
+        self.config_filename = "en/en_GB/jarvis/high/jarvis-high.onnx.json"
         
         try:
+            print(f"Checking/Downloading JARVIS model from {self.repo_id}...")
+            self.model_path = hf_hub_download(repo_id=self.repo_id, filename=self.model_filename)
+            self.config_path = hf_hub_download(repo_id=self.repo_id, filename=self.config_filename)
+            print(f"Model cached at: {self.model_path}")
+            
             self.voice = PiperVoice.load(self.model_path, config_path=self.config_path)
-            print("Jarvis voice loaded successfully!")
+            print("Jarvis voice loaded successfully from Hugging Face cache!")
         except Exception as e:
             print(f"WARNING: Could not load Jarvis voice: {e}")
             self.voice = None
