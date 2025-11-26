@@ -25,11 +25,20 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
             
             # Send to Brain (LLM)
             response = await llm_service.generate_response(data)
+            # Send Text Response first
             await manager.send_personal_message(response, websocket)
             
-            # Send Voice (TTS)
-            audio_data = await tts_service.generate_audio(response)
-            await websocket.send_bytes(audio_data)
+            # Stream Voice (TTS) - Sentence by sentence
+            # Simple sentence splitting
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', response)
+            
+            for sentence in sentences:
+                if sentence.strip():
+                    # Generate audio for this sentence
+                    audio_data = await tts_service.generate_audio(sentence)
+                    if audio_data:
+                        await websocket.send_bytes(audio_data)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         await manager.broadcast(f"Client #{client_id} left the chat")

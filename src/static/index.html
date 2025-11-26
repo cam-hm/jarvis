@@ -792,8 +792,33 @@
                 messages.appendChild(message)
                 messages.scrollTop = messages.scrollHeight;
             } else if (event.data instanceof ArrayBuffer) {
-                // Play audio with avatar visualization
-                var blob = new Blob([event.data], { type: 'audio/wav' });
+                // Add audio chunk to queue
+                audioQueue.enqueue(event.data);
+            }
+        };
+
+        // ========== AUDIO QUEUE SYSTEM ==========
+        const audioQueue = {
+            queue: [],
+            isPlaying: false,
+
+            enqueue: function(audioData) {
+                this.queue.push(audioData);
+                if (!this.isPlaying) {
+                    this.playNext();
+                }
+            },
+
+            playNext: function() {
+                if (this.queue.length === 0) {
+                    this.isPlaying = false;
+                    return;
+                }
+
+                this.isPlaying = true;
+                const audioData = this.queue.shift();
+                
+                var blob = new Blob([audioData], { type: 'audio/wav' });
                 var url = window.URL.createObjectURL(blob);
                 var audio = new Audio(url);
 
@@ -806,11 +831,23 @@
                 }
 
                 // Connect audio to analyser
+                // Need to handle potential errors if context is suspended
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+
                 const source = audioContext.createMediaElementSource(audio);
                 source.connect(audioAnalyser);
                 audioAnalyser.connect(audioContext.destination);
 
-                audio.play();
+                audio.onended = function() {
+                    audioQueue.playNext();
+                };
+
+                audio.play().catch(e => {
+                    console.error("Audio play error:", e);
+                    audioQueue.playNext(); // Skip if error
+                });
             }
         };
 
