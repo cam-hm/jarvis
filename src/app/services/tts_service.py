@@ -11,8 +11,8 @@ class TTSService:
         # Repo: https://huggingface.co/jgkawell/jarvis
         self.repo_id = "jgkawell/jarvis"
         # Correct path based on user provided link
-        self.model_filename = "en/en_GB/jarvis/high/jarvis-high.onnx"
-        self.config_filename = "en/en_GB/jarvis/high/jarvis-high.onnx.json"
+        self.model_filename = "en/en_GB/jarvis/medium/jarvis-medium.onnx"
+        self.config_filename = "en/en_GB/jarvis/medium/jarvis-medium.onnx.json"
         
         try:
             print(f"Checking/Downloading JARVIS model from {self.repo_id}...")

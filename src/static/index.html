@@ -5,73 +5,139 @@
     <title>Jarvis AI - Interface</title>
     <style>
         body {
+            margin: 0;
+            padding: 0;
             background: linear-gradient(135deg, #0a0015 0%, #1a0033 50%, #0a0820 100%);
             color: #00d9ff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
-            margin: 0;
             overflow: hidden;
+            /* Prevent body scroll */
         }
 
         #container {
-            width: 80%;
-            max-width: 600px;
-            border: 2px solid #b366ff;
-            padding: 20px;
-            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            /* Reduced from 800px */
+            height: 90vh;
+            /* Fixed height relative to viewport */
             background: rgba(10, 0, 30, 0.7);
+            border: 2px solid #b366ff;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(179, 102, 255, 0.3), inset 0 0 20px rgba(0, 217, 255, 0.1);
             backdrop-filter: blur(10px);
-            box-shadow: 0 0 30px rgba(179, 102, 255, 0.4), 0 0 60px rgba(0, 217, 255, 0.2);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
 
         h1 {
             text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 8px;
-            background: linear-gradient(90deg, #b366ff 0%, #00d9ff 100%);
-            background-clip: text;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
             font-size: 2em;
-            margin: 0 0 20px 0;
+            /* Reduced font size */
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            background: linear-gradient(90deg, #b366ff 0%, #00d9ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+        }
+
+        #avatar-container {
+            width: 100%;
+            height: 300px;
+            /* Reduced height */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        #avatar-canvas {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0) 0%, rgba(10, 0, 30, 0.8) 100%);
+            box-shadow: 0 0 30px rgba(179, 102, 255, 0.2);
         }
 
         #messages {
+            flex-grow: 1;
+            /* Take remaining space */
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid rgba(179, 102, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            scrollbar-width: thin;
+            scrollbar-color: #b366ff rgba(0, 0, 0, 0.3);
             list-style-type: none;
-            padding: 0;
-            height: 300px;
-            overflow-y: scroll;
-            border-bottom: 1px solid #b366ff;
-            margin-bottom: 20px;
+            /* Added to match original */
         }
 
-        #messages li {
-            padding: 5px 0;
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #messages::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        #messages::-webkit-scrollbar-thumb {
+            background-color: #b366ff;
+            border-radius: 4px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .user-message {
+            background: rgba(0, 217, 255, 0.1);
+            border-left: 3px solid #00d9ff;
+            text-align: right;
+            color: #fff;
+        }
+
+        .bot-message {
+            background: rgba(179, 102, 255, 0.1);
+            border-left: 3px solid #b366ff;
+            text-align: left;
             color: #00d9ff;
         }
 
         input {
-            width: 70%;
+            width: 60%;
             padding: 12px;
             background: rgba(20, 0, 40, 0.8);
             border: 2px solid #b366ff;
             color: #00d9ff;
             border-radius: 8px;
+            outline: none;
             font-size: 14px;
+            transition: all 0.3s;
         }
 
         input:focus {
-            outline: none;
             border-color: #ff66d9;
-            box-shadow: 0 0 15px rgba(255, 102, 217, 0.5);
+            box-shadow: 0 0 15px rgba(255, 102, 217, 0.4);
         }
 
         button {
-            width: 22%;
+            width: 20%;
+            /* Adjusted width */
             padding: 12px;
             background: linear-gradient(135deg, #b366ff 0%, #ff66d9 100%);
             color: #fff;
@@ -802,14 +868,14 @@
             queue: [],
             isPlaying: false,
 
-            enqueue: function(audioData) {
+            enqueue: function (audioData) {
                 this.queue.push(audioData);
                 if (!this.isPlaying) {
                     this.playNext();
                 }
             },
 
-            playNext: function() {
+            playNext: function () {
                 if (this.queue.length === 0) {
                     this.isPlaying = false;
                     return;
@@ -817,7 +883,7 @@
 
                 this.isPlaying = true;
                 const audioData = this.queue.shift();
-                
+
                 var blob = new Blob([audioData], { type: 'audio/wav' });
                 var url = window.URL.createObjectURL(blob);
                 var audio = new Audio(url);
@@ -840,7 +906,7 @@
                 source.connect(audioAnalyser);
                 audioAnalyser.connect(audioContext.destination);
 
-                audio.onended = function() {
+                audio.onended = function () {
                     audioQueue.playNext();
                 };
 
